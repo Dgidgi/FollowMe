@@ -131,11 +131,6 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         return msg;
     }
 
-
-    public void sendMessage(View view) {
-        MessagingClient.sendMessage(this.getBaseContext(), "dgidgi.followme.trackrecorder", "coucou from android");
-    }
-
     public void toggleSendCoordinates(View view) {
         ToggleButton toggleButton = (ToggleButton) findViewById(R.id.toggleButton);
 
@@ -164,15 +159,12 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                     mLocationRequest,
                     (com.google.android.gms.location.LocationListener) this);
 
-
-
             timer = new Timer("FollowMeCoordinateEmissionThread" );
             timer.schedule(new TimerTask() {
                 @Override
                 public void run() {
 
                     if ( mLastLocation != null ) {
-
 
                         String locMsg = formatLocationMessage(mLastLocation);
 
@@ -187,7 +179,6 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                 }
             },
             0, SEND_PERIOD);
-
 
         } else {
 
@@ -212,7 +203,6 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         mLocationRequest.setInterval(1000);
         mLocationRequest.setFastestInterval(1000);
-
     }
 
     @Override

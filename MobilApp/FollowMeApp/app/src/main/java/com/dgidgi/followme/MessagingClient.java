@@ -49,7 +49,6 @@ public class MessagingClient {
 
    static public void sendMessage(MqttAndroidClient client, String strMessage ) {
 
-
        if ( client == null || !client.isConnected()) {
            Log.i(LOGTAG, "Client not connected please call initMessagingClient before sending a message");
            return ;
@@ -81,87 +80,4 @@ public class MessagingClient {
             }
         }
     }
-
-
-
-
-
-
-
-
-   static boolean sendMessage( Context context, String topic, final String message) {
-
-       if (mbAlreadySending ) {
-           Log.i(LOGTAG, "Client already sending, message resumed.");
-           return false ;
-       }
-
-       mbAlreadySending = true ;
-
-              MemoryPersistence memPer = new MemoryPersistence();
-       final MqttAndroidClient client = new MqttAndroidClient(context, MQTT_SERVER_URL, MQTT_CLIENT_ID, memPer);
-
-
-
-       final String msg = message ;
-
-       Log.i(LOGTAG, "Try sending message:["+message+"]");
-
-       try {
-
-           client.connect(null, new IMqttActionListener() {
-
-               @Override
-               public void onSuccess(IMqttToken mqttToken) {
-                   Log.i(LOGTAG, "Client connected");
-
-                   MqttMessage message = new MqttMessage(msg.getBytes());
-                   message.setQos(2);
-                   message.setRetained(false);
-
-                   try {
-                       client.publish(MQTT_MESSAGE_TOPIC, message);
-
-                       Log.i(LOGTAG, "Message published");
-
-                       client.disconnect();
-
-                       Log.i(LOGTAG, "Client disconnected");
-
-                   } catch (MqttPersistenceException e) {
-                       // TODO Auto-generated catch block
-                       e.printStackTrace();
-                   } catch (MqttException e) {
-                       // TODO Auto-generated catch block
-                       e.printStackTrace();
-                   }
-               }
-
-               @Override
-               public void onFailure(IMqttToken arg0, Throwable arg1) {
-                   // TODO Auto-generated method stub
-                   Log.i(LOGTAG, "Client connection failed: " + arg1.getMessage());
-                   mbAlreadySending = false;
-               }
-           });
-           mbAlreadySending = false;
-           return true ;
-
-       } catch (MqttException e) {
-           e.printStackTrace();
-           mbAlreadySending = false;
-           return false ;
-       }
-        /*
-        try { MqttClient client = new MqttClient("'tcp://test.mosquitto.org", "androidClient", new MemoryPersistence());
-            MqttConnectOptions options = new MqttConnectOptions();
-            options.setCleanSession(true);
-            client.connect(options);
-            client.getTopic("dgidgi.followme.trackrecorder").publish("Coucou From Android".getBytes(), 0, false);
-        } catch (MqttException e)
-        {
-            e.printStackTrace();
-        }
-        */
-   }
 }
