@@ -5,6 +5,20 @@ var mqttClient  = mqtt.connect('mqtt://test.mosquitto.org');
 var mongoClient = require('mongodb').MongoClient ;
 
 var mongoDbUrl = 'mongodb://localhost:27017/followme'
+var topicBaseName = 'dgidgi/followme/trackrecorder'
+
+
+var lastCoordinate = "";
+
+// Emission du status courant
+function requestClientStatus( sourceTopic) {
+    mqttClient.publish(sourceTopic +"/status",lastCoordinate ) ;
+}
+
+function manageEndTrack( sourceTopic) {
+     
+}
+
 
 // Connexion à la base
 mongoClient.connect( mongoDbUrl, function(err, mongodb) {
@@ -14,25 +28,51 @@ mongoClient.connect( mongoDbUrl, function(err, mongodb) {
 
     // Connection Mqtt et subsciption
     mqttClient.on('connect', function () {
-      mqttClient.subscribe('dgidgi.followme.trackrecorder');
+      mqttClient.subscribe(topicBaseName);
+      mqttClient.subscribe(topicBaseName+'/+');
     });
 
     // Reception d'un message
     mqttClient.on('message', function (topic, message) {
+
         debug('msg received') ;
         debug('topic:') ;
         debug(topic) ;
         debug('msg:') ;
         debug(message.toString()) ;
 
-        var doc= {  message: message.toString() };
+        if ( message.toString().indexOf("endtrack") != -1) {
 
-        mongodb.collection('testmessages').insert(doc, function (err, data) {
-                if(err) throw err;
+            // Publication su status courant demandé
 
-                debug('message added in database :') ;
-                debug(data) ;
-        });
+            manageEndTrack( topic) ;
+
+            return ;
+
+        } else if ( message.toString().indexOf("status") != -1) {
+
+            // Publication su status courant demandé
+
+            requestClientStatus( topic) ;
+
+            return ;
+
+        } else {
+
+            // Stockage en base de la donnée
+            // TODO Tester la confirmité du message
+
+            var doc = JSON.parse(message.toString());
+
+            // Temporaire
+            lastCoordinate = message.toString()  ;
+
+            mongodb.collection('tracking').insert(doc, function (err, data) {
+                    if(err) throw err;
+
+                    debug('message added in database :') ;
+                    debug(data) ;
+            } );
+        }
     });
-
 });

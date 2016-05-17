@@ -14,6 +14,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.ToggleButton;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -22,6 +23,8 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.Timer;
 import java.util.TimerTask;
@@ -61,7 +64,6 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
     protected void onStart() {
         mGoogleApiClient.connect();
 
-
         super.onStart();
 
         MessagingClient.initMessagingClient(this, new IMessagingClientListerner() {
@@ -71,6 +73,30 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                 ToggleButton toggleButton = (ToggleButton) findViewById(R.id.toggleButton);
                 toggleButton.setEnabled(true);
             }
+
+            public void onMessagingStatusReceived(String status) {
+
+                TextView textView = (TextView) findViewById(R.id.statusText) ;
+                textView.setText(status);
+
+                try {
+                    // {userId:dgidgi, trackId:track#1, loc:{time:1463514800971,location:{latitude:43.5496149,longitude:1.4859633,altitude:0.0}}}
+                    JSONObject jsonStatus = new JSONObject(status);
+                    JSONObject jsonLoc = jsonStatus.getJSONObject("loc");
+                    JSONObject jsonLocation = jsonLoc.getJSONObject("location");
+
+                    TextView textViewLon = (TextView) findViewById(R.id.lonCoordinateText) ;
+                    TextView textViewLat = (TextView) findViewById(R.id.latCoordinateText) ;
+
+                    textViewLon.setText(jsonLocation.getString("longitude"));
+                    textViewLat.setText(jsonLocation.getString("latitude"));
+
+
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+
         });
     }
 
@@ -81,6 +107,9 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
 
     protected void onStop() {
+
+        MessagingClient.sendMessage(mClient, "endtrack",MessagingClient.mApplicationUUID );
+
         mGoogleApiClient.disconnect();
         MessagingClient.releaseClient(mClient);
         super.onStop();
@@ -124,7 +153,7 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         if (loc == null )
             return "" ;
 
-        String msg = "{userId:dgidgi, trackId:track#1, loc:" ;
+        String msg = "{userId:\"dgidgi\", trackId:\"track_1\", applicationId:\""+MessagingClient.mApplicationUUID+ "\",loc:" ;
         msg += formatLocation(loc) ;
         msg += "}";
 
@@ -168,10 +197,19 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
                         String locMsg = formatLocationMessage(mLastLocation);
 
+
+
                         Log.i(LOGTAG, " returned loc(" + locMsg + ")");
 
                         if (locMsg != null && !locMsg.isEmpty()) {
-                            MessagingClient.sendMessage(mClient, locMsg);
+                            JSONObject jsonMsg = null;
+                            try {
+                                jsonMsg = new JSONObject(locMsg);
+                                MessagingClient.sendMessage(mClient, jsonMsg.toString());
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            MessagingClient.sendMessage(mClient, "status",MessagingClient.mApplicationUUID );
                         }
 
                         mLastLocation = null ;
@@ -183,6 +221,9 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         } else {
 
             Log.i(LOGTAG, "Stop sending ...");
+
+            // On préviens le serveur que l'on a stoppé
+            MessagingClient.sendMessage(mClient, "endtrack",MessagingClient.mApplicationUUID );
 
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, (com.google.android.gms.location.LocationListener) this);
 
