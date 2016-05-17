@@ -1,1 +1,1 @@
-mongod --port 27017
+mongod --config Config/mongod.conf --port 27017
