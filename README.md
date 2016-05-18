@@ -1,7 +1,7 @@
 # FollowMe
 ## MQTT Messaging
 
-(M) -> (S) : dgidgi/followme/trackrecorder + sample : json   
-(M) -> (S) : dgidgi/followme/trackrecorder/appUID + "status" : demande de status   
-(M) -> (S) : dgidgi/followme/trackrecorder/appUID + "endtrack" : fin de tracking  
-(S) -> (M) : dgidgi/followme/trackrecorder/appUID/status + status: retour du status   
+(M) -> (S) - Topic : **dgidgi/followme/trackrecorder** - Message : json sample   
+(M) -> (S) - Topic : **dgidgi/followme/trackrecorder/appUID**  - Message : "status" : demande de status   
+(M) -> (S) - Topic : **dgidgi/followme/trackrecorder/appUID**  - Message : "endtrack" : fin de tracking  
+(S) -> (M) - Topic : **dgidgi/followme/trackrecorder/appUID/status**  - Message : json status   
