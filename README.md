@@ -10,6 +10,7 @@ tracking : mémorisation des samples
 (S) -> (M) - Topic : **dgidgi/followme/trackrecorder/appUID/status**  - Message : json status   
 ## JSON Formats
 ### location samble
+<p><code>
 {userId: dgidgi,  
  trackId:track_1,   
  applicationId: UUUUUUUUIIIIDDDD,  
@@ -22,3 +23,4 @@ tracking : mémorisation des samples
     }
   }
 }
+</p></code>
