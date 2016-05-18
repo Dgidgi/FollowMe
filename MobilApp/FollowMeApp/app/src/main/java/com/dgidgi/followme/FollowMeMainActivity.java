@@ -87,9 +87,11 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
                     TextView textViewLon = (TextView) findViewById(R.id.lonCoordinateText) ;
                     TextView textViewLat = (TextView) findViewById(R.id.latCoordinateText) ;
+                    TextView textViewDistance = (TextView) findViewById(R.id.distanceText) ;
 
                     textViewLon.setText(jsonLocation.getString("longitude"));
                     textViewLat.setText(jsonLocation.getString("latitude"));
+                    textViewDistance.setText(jsonStatus.getString("distance"));
 
 
                 } catch (JSONException e) {
