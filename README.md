@@ -11,16 +11,5 @@ tracking : mémorisation des samples
 ## JSON Formats
 ### location samble
 <p><code>
-{userId: dgidgi,  
- trackId:track_1,   
- applicationId: UUUUUUUUIIIIDDDD,  
- loc: {  
-    time:time_milli_second,  
-    location: {  
-      latitude:0.0,  
-      longitude:0.0,  
-      altitude:0.0,  
-    }
-  }
-}
+{userId: dgidgi,  trackId:track_1,applicationId: UUUUUUUUIIIIDDDD,loc: {time:time_milli_second,location: { latitude:0.0,longitude:0.0,altitude:0.0 }}}
 </p></code>
