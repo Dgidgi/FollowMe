@@ -20,7 +20,7 @@ function requestClientStatus( sourceTopic) {
     // Recherche du dernier sample acquis sur le même track
     var appId  =  extractApplicationIDFromTopic( sourceTopic) ;
 
-    var cursor = mongoDbConnection.collection('tracking').find({applicationId:appId}).sort({time:-1}).limit(1) ;
+    var cursor = mongoDbConnection.collection('tracking').find({applicationId:appId}).sort({'loc.time':-1}).limit(1) ;
 
     cursor.nextObject(function(err, item) {
             debug('found item :['+item+']') ;
@@ -67,7 +67,7 @@ function extractApplicationIDFromTopic( sourceTopic) {
 ///////////////////////////////////////////////////////////////////////////////
 function manageAddTrackSample( lastSample ) {
 
-    debug('manageAddTrackSample []'+lastSample+']') ;
+    debug('manageAddTrackSample ['+JSON.stringify(lastSample)+']') ;
 
     // TODO Tester la confirmité du message
     if ( mongoDbConnection == null)
@@ -75,25 +75,31 @@ function manageAddTrackSample( lastSample ) {
 
     // Recherche du dernier sample acquis sur le même track
 
-    var cursor = mongoDbConnection.collection('tracking').find({applicationId:lastSample.applicationId}).sort({time:-1}).limit(1) ;
+    var cursor = mongoDbConnection.collection('tracking').find({applicationId:lastSample.applicationId}).sort({'loc.time':-1}).limit(1) ;
 
-    var distance = 0 ;
+    var distance = 0.0 ;
     cursor.nextObject(function(err, item) {
-            debug('found item :['+item+']') ;
+            debug('found item :['+JSON.stringify(item)+']') ;
 
             if ( item != null) {
-
-                    distance = item.distance + geolib.getDistance( item.loc.location, lastSample.loc.location ) ;
-            }
+		    var p1 = {"longitude":item.loc.location.longitude, "latitude":item.loc.location.latitude };
+		    var p2 = {"longitude":lastSample.loc.location.longitude, "latitude":lastSample.loc.location.latitude };
+                    var delta = geolib.getDistance(p1, p2, 1,2 ) ;
+            	    debug(' compute distance beetween ['+JSON.stringify(p1)+'] and ['+JSON.stringify(p2)+'] :'+delta) ;
+		    distance = item.distance + delta;           
+            	    debug(' current distance '+item.distance+' -> '+distance) ;
+	    }
 
             lastSample.distance = distance ;
+
+            debug('object to save :['+JSON.stringify(lastSample)+']') ;
 
             // Stockage en base de la donnée
             mongoDbConnection.collection('tracking').insert(lastSample, function (err, data) {
                     if(err) throw err;
 
                     debug('message added in database :') ;
-                    debug(data) ;
+                    debug(JSON.stringify(data)) ;
             } );
     } );
 }
