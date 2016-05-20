@@ -11,7 +11,15 @@ var topicBaseName = 'dgidgi/followme/trackrecorder'
 var mongoDbConnection = null ;
 var lastCoordinate = "";
 
-// Emission du status courant
+// Retourne le dernier Sample associé à appId
+///////////////////////////////////////////////////////////////////////////////
+function findPreviousLocationSample( appId) {
+ return mongoDbConnection.collection('tracking').find({applicationId:appId}).sort({'loc.time':-1}).limit(1) ;
+}
+
+// Demande de status
+// Retourne le dernier sample associé à l'appId
+///////////////////////////////////////////////////////////////////////////////
 function requestClientStatus( sourceTopic) {
 
     if ( mongoDbConnection == null)
@@ -20,17 +28,19 @@ function requestClientStatus( sourceTopic) {
     // Recherche du dernier sample acquis sur le même track
     var appId  =  extractApplicationIDFromTopic( sourceTopic) ;
 
-    var cursor = mongoDbConnection.collection('tracking').find({applicationId:appId}).sort({'loc.time':-1}).limit(1) ;
+    var cursor = findPreviousLocationSample(appId) ;
 
     cursor.nextObject(function(err, item) {
-            debug('found item :['+item+']') ;
+        debug('found item :['+item+']') ;
 
-            if ( item != null) {
-                mqttClient.publish(sourceTopic +"/status",JSON.stringify(item) ) ;
-            }
+        if ( item != null) {
+            mqttClient.publish(sourceTopic +"/status",JSON.stringify(item) ) ;
+        }
     } );
 }
 
+// Appelé lorsqu'une capture est interompue
+///////////////////////////////////////////////////////////////////////////////
 function manageEndTrack( sourceTopic) {
     var appId  =  extractApplicationIDFromTopic( sourceTopic) ;
     if (appId==null || appId=="")
@@ -49,6 +59,7 @@ function manageEndTrack( sourceTopic) {
 }
 
 // Extrait l'UUID de l'application à partir d'un topic
+///////////////////////////////////////////////////////////////////////////////
 function extractApplicationIDFromTopic( sourceTopic) {
 
     if (sourceTopic == null )
@@ -74,42 +85,45 @@ function manageAddTrackSample( lastSample ) {
         return ;
 
     // Recherche du dernier sample acquis sur le même track
+    var cursor = findPreviousLocationSample(lastSample.applicationId) ;
 
-    var cursor = mongoDbConnection.collection('tracking').find({applicationId:lastSample.applicationId}).sort({'loc.time':-1}).limit(1) ;
 
-    var distance = 0.0 ;
-    cursor.nextObject(function(err, item) {
-            debug('found item :['+JSON.stringify(item)+']') ;
+    lastSample.distance = 0.0 ;
+    cursor.nextObject(function(err, prevSample) {
+        debug('found item :['+JSON.stringify(prevSample)+']') ;
 
-            if ( item != null) {
-		    var p1 = {"longitude":item.loc.location.longitude, "latitude":item.loc.location.latitude };
-		    var p2 = {"longitude":lastSample.loc.location.longitude, "latitude":lastSample.loc.location.latitude };
-                    var delta = geolib.getDistance(p1, p2, 1,2 ) ;
-            	    debug(' compute distance beetween ['+JSON.stringify(p1)+'] and ['+JSON.stringify(p2)+'] :'+delta) ;
-		    distance = item.distance + delta;           
-            	    debug(' current distance '+item.distance+' -> '+distance) ;
+        if ( prevSample != null) {
+            var p1 = {"longitude":prevSample.loc.location.longitude, "latitude":prevSample.loc.location.latitude };
+            var p2 = {"longitude":lastSample.loc.location.longitude, "latitude":lastSample.loc.location.latitude };
+            var delta = geolib.getDistance(p1, p2, 1,2 ) ;
+
+            debug(' compute distance beetween ['+JSON.stringify(p1)+'] and ['+JSON.stringify(p2)+'] :'+delta) ;
+
+            lastSample.distance = prevSample.distance + delta;
+
+            debug(' current distance '+prevSample.distance+' -> '+lastSample.distance) ;
 	    }
 
-            lastSample.distance = distance ;
+        debug('object to save :['+JSON.stringify(lastSample)+']') ;
 
-            debug('object to save :['+JSON.stringify(lastSample)+']') ;
-
-            // Stockage en base de la donnée
-            mongoDbConnection.collection('tracking').insert(lastSample, function (err, data) {
-                    if(err) throw err;
-
-                    debug('message added in database :') ;
-                    debug(JSON.stringify(data)) ;
-            } );
+        // Stockage en base de la donnée
+        mongoDbConnection.collection('tracking').insert(lastSample, function (err, data) {
+            if(err) throw err;
+            debug('sample added in db :') ;
+            debug(JSON.stringify(data)) ;
+        } );
     } );
 }
 
-
-// Connexion à la base
+//
+// Lancement du server
+// - Connexion à la base mongodb
+// - Connexion Mqtt
+// - Ecoute des topic sur Mqtt
+///////////////////////////////////////////////////////////////////////////////
 mongoClient.connect( mongoDbUrl, function(err, mongodb) {
     if(err) throw err;
     debug('mongodb connection to'+ mongoDbUrl +' : ok') ;
-    debug('mongodb') ;
 
     mongoDbConnection = mongodb ;
 
@@ -129,23 +143,17 @@ mongoClient.connect( mongoDbUrl, function(err, mongodb) {
         debug(message.toString()) ;
 
         if ( message.toString().indexOf("endtrack") != -1) {
-
             // Gestion en fin de tracking
             manageEndTrack( topic) ;
-
             return ;
 
         } else if ( message.toString().indexOf("status") != -1) {
-
             // Publication du status courant demandé
             requestClientStatus( topic) ;
-
             return ;
 
         } else {
-
             // Ajout d'un location sample dans un track
-
             manageAddTrackSample(JSON.parse(message.toString()) ) ;
 
         }
