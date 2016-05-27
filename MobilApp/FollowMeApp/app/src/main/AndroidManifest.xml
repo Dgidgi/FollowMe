@@ -18,6 +18,9 @@
 
         <service android:name="org.eclipse.paho.android.service.MqttService" >
         </service>
+
+        <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyAYHTNfFPMkB-ihRgWjNnuVEcAH37nbWfk"/>
+
     </application>
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

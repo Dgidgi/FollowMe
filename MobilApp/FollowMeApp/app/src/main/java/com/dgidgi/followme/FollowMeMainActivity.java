@@ -21,6 +21,11 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.LatLng;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.json.JSONException;
@@ -29,11 +34,12 @@ import org.json.JSONObject;
 import java.util.Timer;
 import java.util.TimerTask;
 
-public class FollowMeMainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
+public class FollowMeMainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener,OnMapReadyCallback {
 
     private static final String LOGTAG = "FollowMeMainActivity";
     private static final int SEND_PERIOD = 1000;
     GoogleApiClient mGoogleApiClient;
+    GoogleMap       mGoogleMap;
 
     private Timer timer = null;
 
@@ -59,6 +65,12 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
             ActivityCompat.requestPermissions(this, new String[]{ Manifest.permission.ACCESS_COARSE_LOCATION,
                     Manifest.permission.ACCESS_FINE_LOCATION }, 200);
         }
+
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+
+
     }
 
     protected void onStart() {
@@ -92,6 +104,7 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                     textViewLon.setText(jsonLocation.getString("longitude"));
                     textViewLat.setText(jsonLocation.getString("latitude"));
                     textViewDistance.setText(jsonStatus.getString("distance"));
+
 
 
                 } catch (JSONException e) {
@@ -162,6 +175,82 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         return msg;
     }
 
+    //
+    // Demarrage du tracking
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    public void doStartTracking() {
+        Log.i(LOGTAG, "Start sending ...");
+
+        MessagingClient.sendMessage(mClient, "starttrack",MessagingClient.mApplicationUUID );
+
+        if (ActivityCompat.checkSelfPermission( this.getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission( this.getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+            Log.e(LOGTAG, "checkSelf ACCESS_FINE_LOCATION permission faild");
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+
+        LocationServices.FusedLocationApi.requestLocationUpdates(
+                mGoogleApiClient,
+                mLocationRequest,
+                (com.google.android.gms.location.LocationListener) this);
+
+        timer = new Timer("FollowMeCoordinateEmissionThread" );
+        timer.schedule(new TimerTask() {
+               @Override
+               public void run() {
+
+                   if ( mLastLocation != null ) {
+
+                       String locMsg = formatLocationMessage(mLastLocation);
+
+                       updateMapLocation( mLastLocation) ;
+
+                       Log.i(LOGTAG, " returned loc(" + locMsg + ")");
+
+                       if (locMsg != null && !locMsg.isEmpty()) {
+                           JSONObject jsonMsg = null;
+                           try {
+                               jsonMsg = new JSONObject(locMsg);
+                               MessagingClient.sendMessage(mClient, jsonMsg.toString());
+                           } catch (JSONException e) {
+                               e.printStackTrace();
+                           }
+                           MessagingClient.sendMessage(mClient, "status",MessagingClient.mApplicationUUID );
+                       }
+
+                       mLastLocation = null ;
+                   }
+               }
+           }, 0, SEND_PERIOD);
+    }
+
+    //
+    // Fin du Tracking
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    public void doEndTracking() {
+        Log.i(LOGTAG, "Stop sending ...");
+
+        // On prévient le serveur que l'on a stoppé
+        MessagingClient.sendMessage(mClient, "endtrack",MessagingClient.mApplicationUUID );
+
+        LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, (com.google.android.gms.location.LocationListener) this);
+
+        if ( timer != null ) {
+            timer.cancel();
+            timer = null;
+        }
+    }
+    //
+    // Toggle button
+    ///////////////////////////////////////////////////////////////////////////////////////////////
     public void toggleSendCoordinates(View view) {
         ToggleButton toggleButton = (ToggleButton) findViewById(R.id.toggleButton);
 
@@ -169,72 +258,12 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
         if (toggleButton.isChecked()) {
 
-            Log.i(LOGTAG, "Start sending ...");
-
-            if (ActivityCompat.checkSelfPermission( this.getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                    ActivityCompat.checkSelfPermission( this.getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                Log.e(LOGTAG, "checkSelf ACCESS_FINE_LOCATION permission faild");
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
-                return;
-            }
-
-            LocationServices.FusedLocationApi.requestLocationUpdates(
-                    mGoogleApiClient,
-                    mLocationRequest,
-                    (com.google.android.gms.location.LocationListener) this);
-
-            timer = new Timer("FollowMeCoordinateEmissionThread" );
-            timer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-
-                    if ( mLastLocation != null ) {
-
-                        String locMsg = formatLocationMessage(mLastLocation);
-
-
-
-                        Log.i(LOGTAG, " returned loc(" + locMsg + ")");
-
-                        if (locMsg != null && !locMsg.isEmpty()) {
-                            JSONObject jsonMsg = null;
-                            try {
-                                jsonMsg = new JSONObject(locMsg);
-                                MessagingClient.sendMessage(mClient, jsonMsg.toString());
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            }
-                            MessagingClient.sendMessage(mClient, "status",MessagingClient.mApplicationUUID );
-                        }
-
-                        mLastLocation = null ;
-                    }
-                }
-            },
-            0, SEND_PERIOD);
+            doStartTracking();
 
         } else {
 
-            Log.i(LOGTAG, "Stop sending ...");
-
-            // On préviens le serveur que l'on a stoppé
-            MessagingClient.sendMessage(mClient, "endtrack",MessagingClient.mApplicationUUID );
-
-            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, (com.google.android.gms.location.LocationListener) this);
-
-            if ( timer != null ) {
-                timer.cancel();
-                timer = null;
-            }
+            doEndTracking() ;
         }
-
     }
 
     @Override
@@ -266,4 +295,24 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         mLastLocation = location ;
     }
 
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        mGoogleMap = googleMap ;
+    }
+
+    private void updateMapLocation( Location loc) {
+
+        if (mGoogleMap != null) {
+            final LatLng mapPosition = new LatLng(loc.getLatitude(),loc.getLongitude());
+            this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mapPosition, (float) 18.0)  );
+                }//public void run() {
+            });
+
+
+        }
+
+    }
 }
