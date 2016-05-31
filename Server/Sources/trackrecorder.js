@@ -17,14 +17,8 @@ function findPreviousLocationSample( appId) {
  return mongoDbConnection.collection('tracking').find({applicationId:appId}).sort({'loc.time':-1}).limit(1) ;
 }
 
-// Retourne le dernier sample appId avec une distance non null
-///////////////////////////////////////////////////////////////////////////////
-function findLastLocationSampleWithDistance( appId) {
- return mongoDbConnection.collection('tracking').find({applicationId:appId,distance:{$exists:true}}).sort({'loc.time':-1}).limit(1) ;
-}
-
 // Demande de status
-// Retourne le dernier sample associé à l'appId
+// Retourne les derniers samples associés à l'appId et des autres tracks
 ///////////////////////////////////////////////////////////////////////////////
 function requestClientStatus( sourceTopic) {
 
@@ -34,15 +28,34 @@ function requestClientStatus( sourceTopic) {
     // Recherche du dernier sample acquis sur le même track
     var appId  =  extractApplicationIDFromTopic( sourceTopic) ;
 
-    var cursor = findPreviousLocationSample(appId) ;
+    debug('request Cient Status for ['+appId+']') ;
 
-    cursor.nextObject(function(err, item) {
-        debug('found item :['+item+']') ;
+    findPreviousLocationSample(appId).nextObject( function(err, lastSample) {
 
-        if ( item != null) {
-            mqttClient.publish(sourceTopic +"/status",JSON.stringify(item) ) ;
+        if ( lastSample == null) {
+            debug('no sample found no status to return') ;
+            return ;
         }
-    } );
+
+        debug('send status ['+lastSample.applicationId  +']' ) ;
+        mqttClient.publish(sourceTopic +"/status",JSON.stringify(lastSample) ) ;
+
+        var cOtherTracks = mongoDbConnection.collection('tracks').find({applicationId:{$ne:appId}}) ;
+
+        cOtherTracks.each(function(errTrack, otherTrack) {
+            if ( otherTrack ) {
+                debug('found other track ('+otherTrack.applicationId+')') ;
+
+                findPreviousLocationSample(otherTrack.applicationId).nextObject(function(err, trackSample) {
+
+                    if ( trackSample ) {
+                        debug('send status ['+trackSample.applicationId  +']' ) ;
+                        mqttClient.publish(sourceTopic +"/status",JSON.stringify(trackSample) ) ;
+                    }
+                });
+            }
+        });
+    });
 }
 
 // Appelé lorsqu'une capture est interompue
@@ -59,13 +72,13 @@ function manageEndTracking( appId) {
 
     mongoDbConnection.collection('tracking').remove( {applicationId:appId}, function (err, result) {
             if(err) throw err;
-            debug('tracking cleaned') ;
+            debug('tracking collection cleaned') ;
             debug(result) ;
     } );
 
     mongoDbConnection.collection('tracks').remove( {applicationId:appId}, function (err, result) {
             if(err) throw err;
-            debug('track removed') ;
+            debug('track collection removed') ;
             debug(result) ;
     } );
 
@@ -110,57 +123,37 @@ function extractApplicationIDFromTopic( sourceTopic) {
 //
 // Mise à jour du sample status
 ///////////////////////////////////////////////////////////////////////////////
-function updateTrackSampleStatus( lastSample, applicationId ) {
+function addTrackSample( newSample, applicationId ) {
 
-    // Recherche du dernier sample acquis sur le même track
+    // Recherche du précedent sample acquis sur le même track
     var cursor = findPreviousLocationSample(applicationId) ;
 
-    lastSample.distance = 0.0 ;
+    newSample.distance = 0.0 ;
+
+    debug('update runned distance') ;
+
     cursor.nextObject(function(err, prevSample) {
 
         // Calcul de la distance parcourue
-        debug('found item :['+JSON.stringify(prevSample)+']') ;
+        debug('found previous sample :['+JSON.stringify(prevSample)+']') ;
 
         if ( prevSample != null) {
+
             var p1 = {"longitude":prevSample.loc.location.longitude, "latitude":prevSample.loc.location.latitude };
-            var p2 = {"longitude":lastSample.loc.location.longitude, "latitude":lastSample.loc.location.latitude };
+            var p2 = {"longitude":newSample.loc.location.longitude, "latitude":newSample.loc.location.latitude };
             var delta = geolib.getDistance(p1, p2, 1,2 ) ;
 
             debug(' compute distance beetween ['+JSON.stringify(p1)+'] and ['+JSON.stringify(p2)+'] :'+delta) ;
 
-            lastSample.distance = prevSample.distance + delta;
+            newSample.distance = prevSample.distance + delta;
 
-            debug(' current distance '+prevSample.distance+' -> '+lastSample.distance) ;
+            debug(' current distance '+prevSample.distance+' -> '+newSample.distance) ;
 	    }
 
-        // Calcul des delta distance
-
-        // Recherche des autres track en cours
-        var others = mongoDbConnection.collection('tracks').find({applicationId:{$ne:applicationId}}) ;
-
-        lastSample.delta = [] ;
-
-        others.nextObject(function(err, other) {
-            debug('found other :['+JSON.stringify(other)+']') ;
-            if (other != null) {
-                var lastLocationSample = findLastLocationSampleWithDistance(other.applicationId) ;
-                lastLocationSample.nextObject(function(err, other) {
-
-                    lastSample.delta.push( {applicationId:other.applicationId, distance:  lastSample['distance'] - other.distance  });
-
-                    debug('lastSample withi status :['+JSON.stringify(lastSample)+']') ;
-                });
-            }
-        });
-
-        lastSample.delta.push( {applicationId:'test-application-id-1', distance:  lastSample['distance']   });
-        lastSample.delta.push( {applicationId:'test-application-id-2', distance:  lastSample['distance'] -10    });
-
-
-        debug('object to save :['+JSON.stringify(lastSample)+']') ;
+        debug('object to save :['+JSON.stringify(newSample)+']') ;
 
         // Stockage en base de la donnée
-        mongoDbConnection.collection('tracking').insert(lastSample, function (err, data) {
+        mongoDbConnection.collection('tracking').insert(newSample, function (err, data) {
             if(err) throw err;
             debug('sample added in db :') ;
             debug(JSON.stringify(data)) ;
@@ -178,7 +171,17 @@ function manageAddTrackSample( lastSample ) {
     if ( mongoDbConnection == null)
         return ;
 
-    updateTrackSampleStatus( lastSample, lastSample.applicationId ) ;
+    addTrackSample( lastSample, lastSample.applicationId ) ;
+
+
+    simu = JSON.parse( JSON.stringify(lastSample)) ;
+
+    simu.loc.location.longitude += 0.1 ;
+    simu.loc.location.latitude += 0.2 ;
+    simu.applicationId =   "TRACK-SIMU-1" ;
+
+    addTrackSample( simu, simu.applicationId ) ;
+
 }
 
 //
@@ -211,11 +214,14 @@ mongoClient.connect( mongoDbUrl, function(err, mongodb) {
         if ( message.toString().indexOf("endtrack") != -1) {
             // Gestion en fin de tracking
             manageEndTracking(  extractApplicationIDFromTopic( topic) ) ;
+            manageEndTracking(  "TRACK-SIMU-1" ) ;
+
             return ;
 
         } else if ( message.toString().indexOf("starttrack") != -1) {
             // Gestion du début tracking
             manageStartTracking(  extractApplicationIDFromTopic( topic) ) ;
+            manageStartTracking(  "TRACK-SIMU-1" ) ;
             return ;
 
         } else if ( message.toString().indexOf("status") != -1) {
