@@ -26,8 +26,6 @@ public class MessagingClient {
     private static final String MQTT_MESSAGE_TOPIC = "dgidgi/followme/trackrecorder" ;
     public static final String mApplicationUUID = UUID.randomUUID().toString() ;
 
-    private static boolean mbAlreadySending ;
-
    static public void initMessagingClient( Context context , final IMessagingClientListerner listener ) {
         MemoryPersistence memPer = new MemoryPersistence();
         final MqttAndroidClient mqttClient = new MqttAndroidClient(context, MQTT_SERVER_URL, MQTT_CLIENT_ID, memPer);

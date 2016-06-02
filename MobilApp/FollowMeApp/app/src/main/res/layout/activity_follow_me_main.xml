@@ -55,12 +55,23 @@
     <ToggleButton
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="New ToggleButton"
+        android:text="Center"
         android:id="@+id/toggleButton"
         android:layout_above="@+id/statusText"
         android:layout_centerHorizontal="true"
         android:onClick="toggleSendCoordinates"
-        android:enabled="false" />
+        android:enabled="false"
+        android:textOff="Start"
+        android:textOn="Stop" />
+
+    <CheckBox
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Auto center"
+        android:layout_alignParentRight="true"
+        android:id="@+id/cbAutoCenter"
+        android:layout_above="@+id/statusText"
+        android:checked="true" />
 
 
     <TextView
@@ -70,7 +81,9 @@
         android:id="@+id/statusText"
         android:layout_alignParentBottom="true"
         android:layout_alignParentStart="true"
-        android:layout_alignParentEnd="true" />
+        android:layout_alignParentEnd="true"
+        android:onClick="toggleAutoCenter" />
+
 
 
 </RelativeLayout>

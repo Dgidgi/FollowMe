@@ -14,6 +14,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.TextView;
 import android.widget.ToggleButton;
 
@@ -21,16 +22,17 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -38,8 +40,14 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
     private static final String LOGTAG = "FollowMeMainActivity";
     private static final int SEND_PERIOD = 1000;
+
     GoogleApiClient mGoogleApiClient;
-    GoogleMap       mGoogleMap;
+    FollowMeMap     mFollowMeMap ;
+
+    //
+    // Map des TrackedUsers (y compris nous même)
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    Map<String, TrackedUserStatus> mTrackedUsersStatus = new HashMap<String, TrackedUserStatus>();
 
     private Timer timer = null;
 
@@ -69,10 +77,11 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
-
     }
 
+    //
+    // Lancement de l'application
+    ////////////////////////////////////////////////////////////////////////////////////////////////
     protected void onStart() {
         mGoogleApiClient.connect();
 
@@ -84,32 +93,20 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                 mClient = client ;
                 ToggleButton toggleButton = (ToggleButton) findViewById(R.id.toggleButton);
                 toggleButton.setEnabled(true);
+
+                // Boucle de rafraichissement des status
+                Timer timer = new Timer("Refresh Status" );
+                timer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        // Demande de rafraichissement du status distance parcourue, autres pistes ...
+                        MessagingClient.sendMessage(mClient, "status",MessagingClient.mApplicationUUID );
+                    }
+                }, 0, SEND_PERIOD);
             }
 
             public void onMessagingStatusReceived(String status) {
-
-                TextView textView = (TextView) findViewById(R.id.statusText) ;
-                textView.setText(status);
-
-                try {
-                    // {userId:dgidgi, trackId:track#1, loc:{time:1463514800971,location:{latitude:43.5496149,longitude:1.4859633,altitude:0.0}}}
-                    JSONObject jsonStatus = new JSONObject(status);
-                    JSONObject jsonLoc = jsonStatus.getJSONObject("loc");
-                    JSONObject jsonLocation = jsonLoc.getJSONObject("location");
-
-                    TextView textViewLon = (TextView) findViewById(R.id.lonCoordinateText) ;
-                    TextView textViewLat = (TextView) findViewById(R.id.latCoordinateText) ;
-                    TextView textViewDistance = (TextView) findViewById(R.id.distanceText) ;
-
-                    textViewLon.setText(jsonLocation.getString("longitude"));
-                    textViewLat.setText(jsonLocation.getString("latitude"));
-                    textViewDistance.setText(jsonStatus.getString("distance"));
-
-
-
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
+                updateCurrentStatus( status ) ;
             }
 
         });
@@ -120,7 +117,6 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         super.onResume();
     }
 
-
     protected void onStop() {
 
         MessagingClient.sendMessage(mClient, "endtrack",MessagingClient.mApplicationUUID );
@@ -130,19 +126,51 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         super.onStop();
     }
 
-    public String getLastLocationMessage() {
-        try {
-            Location mLastLocation = LocationServices.FusedLocationApi.getLastLocation(
-                    mGoogleApiClient);
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
 
-            if (mLastLocation != null) {
-                return formatLocationMessage(mLastLocation);
-            }
-        } catch (SecurityException e) {
-            e.printStackTrace();
+        Log.i(LOGTAG, " GoogleApi Connected !");
+
+        mLocationRequest = LocationRequest.create();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setInterval(1000);
+        mLocationRequest.setFastestInterval(1000);
+
+        if (ActivityCompat.checkSelfPermission( this.getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission( this.getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+            Log.e(LOGTAG, "checkSelf ACCESS_FINE_LOCATION permission faild");
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
         }
 
-        return "";
+        LocationServices.FusedLocationApi.requestLocationUpdates(
+                mGoogleApiClient,
+                mLocationRequest,
+                (com.google.android.gms.location.LocationListener) this);
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        Log.i(LOGTAG, " GoogleApi Connection Suspended !");
+
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        Log.i(LOGTAG, " GoogleApi Connection Failed !");
+        Log.i(LOGTAG,         connectionResult.toString() );
+    }
+
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        mFollowMeMap = new FollowMeMap(googleMap)  ;
     }
 
     public String formatLocation(Location loc) {
@@ -183,49 +211,30 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
         MessagingClient.sendMessage(mClient, "starttrack",MessagingClient.mApplicationUUID );
 
-        if (ActivityCompat.checkSelfPermission( this.getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission( this.getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-            Log.e(LOGTAG, "checkSelf ACCESS_FINE_LOCATION permission faild");
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-
-        LocationServices.FusedLocationApi.requestLocationUpdates(
-                mGoogleApiClient,
-                mLocationRequest,
-                (com.google.android.gms.location.LocationListener) this);
-
         timer = new Timer("FollowMeCoordinateEmissionThread" );
         timer.schedule(new TimerTask() {
                @Override
                public void run() {
 
+                   // Envoi de la location courante si besoin
                    if ( mLastLocation != null ) {
 
                        String locMsg = formatLocationMessage(mLastLocation);
 
-                       updateMapLocation( mLastLocation) ;
-
-                       Log.i(LOGTAG, " returned loc(" + locMsg + ")");
+                       Log.i(LOGTAG, " lastLocation (" + locMsg + ")");
 
                        if (locMsg != null && !locMsg.isEmpty()) {
                            JSONObject jsonMsg = null;
                            try {
+
                                jsonMsg = new JSONObject(locMsg);
+
                                MessagingClient.sendMessage(mClient, jsonMsg.toString());
+
                            } catch (JSONException e) {
                                e.printStackTrace();
                            }
-                           MessagingClient.sendMessage(mClient, "status",MessagingClient.mApplicationUUID );
                        }
-
                        mLastLocation = null ;
                    }
                }
@@ -248,8 +257,92 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
             timer = null;
         }
     }
+
     //
-    // Toggle button
+    // Mise à jour du status
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    public void updateCurrentStatus( String status  ) {
+
+        TextView textView = (TextView) findViewById(R.id.statusText) ;
+        textView.setText(status);
+
+        try {
+
+            final TrackedUserStatus tus = new TrackedUserStatus(status,  null, false) ;
+
+            Log.i(LOGTAG, "Receive status for "+  tus.getApplicationId() );
+
+            this.runOnUiThread(new Runnable() {
+                //region Description
+                @Override
+                //endregion
+                public void run() {
+
+                    Log.i(LOGTAG, "Update status "+ tus.getApplicationId() );
+
+                    // si delta de plus de 5 secondes -> cassos
+                    /*
+                    if (Math.abs( tus.getTime() - mMyUserStatus.getTime()) > 5000 ) {
+                        Log.i(LOGTAG, "... to late "+ jsonStatus.getString("applicationId"));
+                        return ;
+                    }
+                    */
+
+                    TrackedUserStatus theTrackedStatus = getOrCreateTrackedUserStatus( tus.getApplicationId()) ;
+                    Boolean bCenterCamera = tus.isMyStatus()&& isAutoCenterCamera() ;
+                    theTrackedStatus.updateFrom(tus,bCenterCamera);
+
+                    updateFromReceivedStatus( theTrackedStatus ) ;
+                }
+            }) ;
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    //
+    // Création ou Récuperation du tracked status pour l'applicationId
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    private TrackedUserStatus getOrCreateTrackedUserStatus( String applicationId  ) {
+        if (mTrackedUsersStatus.containsKey(applicationId)) {
+            return mTrackedUsersStatus.get(applicationId) ;
+        }
+        TrackedUserStatus tus = new TrackedUserStatus(applicationId,mFollowMeMap ) ;
+        mTrackedUsersStatus.put(applicationId, tus);
+
+        return tus ;
+    }
+
+    //
+    // Création ou Récuperation du tracked status de l'application courante
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    private TrackedUserStatus getOrCreateMyUserStatus() {
+        return getOrCreateTrackedUserStatus(MessagingClient.mApplicationUUID);
+    }
+
+    //
+    // Mise à jour du status de l'utilisateur courant
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+   private void updateFromReceivedStatus( TrackedUserStatus status ){
+       if (status.isMyStatus()) {
+           TextView textViewDistance = (TextView) findViewById(R.id.distanceText);
+           textViewDistance.setText("" + status.getDistance());
+       }
+   }
+
+    //
+    //Toggle AutoCenter
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    public void toggleAutoCenter(View view) {
+        if (isAutoCenterCamera() ) {
+            TrackedUserStatus tus = this.getOrCreateMyUserStatus();
+            tus.updateFrom(tus,isAutoCenterCamera());
+        }
+    }
+
+    //
+    // Toggle Tracking
     ///////////////////////////////////////////////////////////////////////////////////////////////
     public void toggleSendCoordinates(View view) {
         ToggleButton toggleButton = (ToggleButton) findViewById(R.id.toggleButton);
@@ -266,53 +359,30 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         }
     }
 
-    @Override
-    public void onConnected(@Nullable Bundle bundle) {
 
-        Log.i(LOGTAG, " GoogleApi Connected !");
-
-        mLocationRequest = LocationRequest.create();
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setInterval(1000);
-        mLocationRequest.setFastestInterval(1000);
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {
-        Log.i(LOGTAG, " GoogleApi Connection Suspended !");
-
-    }
-
-    @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-        Log.i(LOGTAG, " GoogleApi Connection Failed !");
-        Log.i(LOGTAG,         connectionResult.toString() );
-    }
 
     @Override
     public void onLocationChanged(Location location) {
         Log.i(LOGTAG, "Location Changed : "+location.toString());
         mLastLocation = location ;
+
+        TextView textViewLon = (TextView) findViewById(R.id.lonCoordinateText) ;
+        TextView textViewLat = (TextView) findViewById(R.id.latCoordinateText) ;
+
+        textViewLon.setText(""+mLastLocation.getLongitude());
+        textViewLat.setText(""+mLastLocation.getLatitude());
+
+        TrackedUserStatus tus =  getOrCreateMyUserStatus();
+        tus.updateFrom(mLastLocation.getLongitude(), mLastLocation.getLatitude(), isAutoCenterCamera());
     }
 
-    @Override
-    public void onMapReady(GoogleMap googleMap) {
-        mGoogleMap = googleMap ;
+    //
+    // Retourne true si on est en mode autocenter
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    private boolean isAutoCenterCamera(){
+        CheckBox cbAUtoCenter = (CheckBox) findViewById(R.id.cbAutoCenter);
+        return cbAUtoCenter.isChecked() ;
     }
 
-    private void updateMapLocation( Location loc) {
 
-        if (mGoogleMap != null) {
-            final LatLng mapPosition = new LatLng(loc.getLatitude(),loc.getLongitude());
-            this.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mapPosition, (float) 18.0)  );
-                }//public void run() {
-            });
-
-
-        }
-
-    }
 }

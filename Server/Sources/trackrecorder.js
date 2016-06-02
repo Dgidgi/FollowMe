@@ -32,13 +32,11 @@ function requestClientStatus( sourceTopic) {
 
     findPreviousLocationSample(appId).nextObject( function(err, lastSample) {
 
-        if ( lastSample == null) {
-            debug('no sample found no status to return') ;
-            return ;
+        if ( lastSample != null) {
+            debug('send status ['+lastSample.applicationId  +']' ) ;
+            mqttClient.publish(sourceTopic +"/status",JSON.stringify(lastSample) ) ;
         }
 
-        debug('send status ['+lastSample.applicationId  +']' ) ;
-        mqttClient.publish(sourceTopic +"/status",JSON.stringify(lastSample) ) ;
 
         var cOtherTracks = mongoDbConnection.collection('tracks').find({applicationId:{$ne:appId}}) ;
 
@@ -176,11 +174,11 @@ function manageAddTrackSample( lastSample ) {
 
     simu = JSON.parse( JSON.stringify(lastSample)) ;
 
-    simu.loc.location.longitude += 0.1 ;
-    simu.loc.location.latitude += 0.2 ;
+    simu.loc.location.longitude += 0.00 ;
+    simu.loc.location.latitude += 0.0001;
     simu.applicationId =   "TRACK-SIMU-1" ;
 
-    addTrackSample( simu, simu.applicationId ) ;
+//    addTrackSample( simu, simu.applicationId ) ;
 
 }
 
@@ -214,14 +212,14 @@ mongoClient.connect( mongoDbUrl, function(err, mongodb) {
         if ( message.toString().indexOf("endtrack") != -1) {
             // Gestion en fin de tracking
             manageEndTracking(  extractApplicationIDFromTopic( topic) ) ;
-            manageEndTracking(  "TRACK-SIMU-1" ) ;
+            //manageEndTracking(  "TRACK-SIMU-1" ) ;
 
             return ;
 
         } else if ( message.toString().indexOf("starttrack") != -1) {
             // Gestion du début tracking
             manageStartTracking(  extractApplicationIDFromTopic( topic) ) ;
-            manageStartTracking(  "TRACK-SIMU-1" ) ;
+        //    manageStartTracking(  "TRACK-SIMU-1" ) ;
             return ;
 
         } else if ( message.toString().indexOf("status") != -1) {
