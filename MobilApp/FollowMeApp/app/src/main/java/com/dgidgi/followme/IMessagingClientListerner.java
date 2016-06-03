@@ -8,4 +8,6 @@ import org.eclipse.paho.android.service.MqttAndroidClient;
 public interface IMessagingClientListerner {
     void onMessagingClientConnected(MqttAndroidClient client) ;
     void onMessagingStatusReceived(String coordinate) ;
-}
+    void onMessagingClientConnectionLost(MqttAndroidClient client) ;
+
+    }

@@ -26,22 +26,27 @@ public class MessagingClient {
     private static final String MQTT_MESSAGE_TOPIC = "dgidgi/followme/trackrecorder" ;
     public static final String mApplicationUUID = UUID.randomUUID().toString() ;
 
+    private static IMessagingClientListerner mListener ;
+
    static public void initMessagingClient( Context context , final IMessagingClientListerner listener ) {
+       mListener = listener ;
+
         MemoryPersistence memPer = new MemoryPersistence();
-        final MqttAndroidClient mqttClient = new MqttAndroidClient(context, MQTT_SERVER_URL, MQTT_CLIENT_ID, memPer);
+        final MqttAndroidClient mqttClient = new MqttAndroidClient(context, MQTT_SERVER_URL, mApplicationUUID, memPer);
 
         try {
             mqttClient.connect(null, new IMqttActionListener() {
 
                 @Override
                 public void onSuccess(IMqttToken mqttToken) {
-                    Log.i(LOGTAG, "Client connected");
 
+                    Log.i(LOGTAG, "Client connected");
 
                     mqttClient.setCallback(new MqttCallback() {
                         @Override
                         public void connectionLost(Throwable cause) {
-
+                            Log.i(LOGTAG, "Client message connexion lost");
+                            mListener.onMessagingClientConnectionLost(mqttClient);
                         }
 
                         @Override
@@ -68,7 +73,6 @@ public class MessagingClient {
                     }
 
                     listener.onMessagingClientConnected(mqttClient);
-
                 }
 
                 @Override
@@ -90,6 +94,7 @@ public class MessagingClient {
 
         String topic = MQTT_MESSAGE_TOPIC+"/"+extensionTopic ;
        if ( client == null || !client.isConnected()) {
+
            Log.i(LOGTAG, "Client not connected please call initMessagingClient before sending a message");
            return ;
        }
