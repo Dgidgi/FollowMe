@@ -93,16 +93,12 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                 mClient = client ;
                 ToggleButton toggleButton = (ToggleButton) findViewById(R.id.toggleButton);
                 toggleButton.setEnabled(true);
+            }
+            @Override
+            public void onMessagingClientConnectionLost(MqttAndroidClient client) {
 
-                // Boucle de rafraichissement des status
-                Timer timer = new Timer("Refresh Status" );
-                timer.schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-                        // Demande de rafraichissement du status distance parcourue, autres pistes ...
-                        MessagingClient.sendMessage(mClient, "status",MessagingClient.mApplicationUUID );
-                    }
-                }, 0, SEND_PERIOD);
+                ToggleButton toggleButton = (ToggleButton) findViewById(R.id.toggleButton);
+                toggleButton.setEnabled(false);
             }
 
             public void onMessagingStatusReceived(String status) {
@@ -229,6 +225,8 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
                                jsonMsg = new JSONObject(locMsg);
 
+                               Log.i(LOGTAG, "Send current location for ["+jsonMsg.getString("applicationId")+"]");
+
                                MessagingClient.sendMessage(mClient, jsonMsg.toString());
 
                            } catch (JSONException e) {
@@ -279,17 +277,12 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                 public void run() {
 
                     Log.i(LOGTAG, "Update status "+ tus.getApplicationId() );
-
-                    // si delta de plus de 5 secondes -> cassos
-                    /*
-                    if (Math.abs( tus.getTime() - mMyUserStatus.getTime()) > 5000 ) {
-                        Log.i(LOGTAG, "... to late "+ jsonStatus.getString("applicationId"));
-                        return ;
-                    }
-                    */
+                    if ( tus.isMyStatus())
+                        Log.i(LOGTAG, "... it's me" );
 
                     TrackedUserStatus theTrackedStatus = getOrCreateTrackedUserStatus( tus.getApplicationId()) ;
                     Boolean bCenterCamera = tus.isMyStatus()&& isAutoCenterCamera() ;
+
                     theTrackedStatus.updateFrom(tus,bCenterCamera);
 
                     updateFromReceivedStatus( theTrackedStatus ) ;
@@ -363,6 +356,7 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
     @Override
     public void onLocationChanged(Location location) {
+
         Log.i(LOGTAG, "Location Changed : "+location.toString());
         mLastLocation = location ;
 
@@ -372,8 +366,8 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         textViewLon.setText(""+mLastLocation.getLongitude());
         textViewLat.setText(""+mLastLocation.getLatitude());
 
-        TrackedUserStatus tus =  getOrCreateMyUserStatus();
-        tus.updateFrom(mLastLocation.getLongitude(), mLastLocation.getLatitude(), isAutoCenterCamera());
+   //     TrackedUserStatus tus =  getOrCreateMyUserStatus();
+   //     tus.updateFrom(mLastLocation.getLongitude(), mLastLocation.getLatitude(), isAutoCenterCamera());
     }
 
     //

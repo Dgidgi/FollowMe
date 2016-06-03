@@ -13,8 +13,19 @@ var lastCoordinate = "";
 
 // Retourne le dernier Sample associé à appId
 ///////////////////////////////////////////////////////////////////////////////
-function findPreviousLocationSample( appId) {
- return mongoDbConnection.collection('tracking').find({applicationId:appId}).sort({'loc.time':-1}).limit(1) ;
+function findLastSample( appId) {
+    return mongoDbConnection.collection('tracking').find({'applicationId':appId}).sort({"loc.time":-1}).limit(1) ;
+}
+
+// Retourne le dernier Sample associé à appId avec une delta avec time
+// inferieur à delai
+///////////////////////////////////////////////////////////////////////////////
+function findTimedLastSample( appId, time,delai) {
+
+    var minTime = time - delai ;
+    var maxTime = time + delai ;
+
+    return mongoDbConnection.collection('tracking').find({'applicationId':appId, 'loc.time':{$lte:maxTime, $gte:minTime}}).sort({'loc.time':-1}).limit(1) ;
 }
 
 // Demande de status
@@ -30,29 +41,48 @@ function requestClientStatus( sourceTopic) {
 
     debug('request Cient Status for ['+appId+']') ;
 
-    findPreviousLocationSample(appId).nextObject( function(err, lastSample) {
+    findLastSample(appId).nextObject( function(err, lastSample) {
 
         if ( lastSample != null) {
-            debug('send status ['+lastSample.applicationId  +']' ) ;
+
+            debug('send  lastSample for ['+lastSample.applicationId  +']' ) ;
+
             mqttClient.publish(sourceTopic +"/status",JSON.stringify(lastSample) ) ;
+
+            var cOtherTracks = mongoDbConnection.collection('tracks').find({applicationId:{$ne:appId}}) ;
+
+            cOtherTracks.each(function(errTrack, otherTrack) {
+                if ( otherTrack ) {
+                    debug('found other track ('+otherTrack.applicationId+')') ;
+
+                    findTimedLastSample(otherTrack.applicationId, lastSample.loc.time, 5000).nextObject(function(err, trackSample) {
+
+                        if ( trackSample ) {
+                            debug('send status ['+trackSample.applicationId  +'] time('+trackSample.loc.time+')' ) ;
+                            mqttClient.publish(sourceTopic +"/status",JSON.stringify(trackSample) ) ;
+                        }
+                    });
+                }
+            });
+        } else {
+            debug('...no lastSample found ['+appId  +'] !!' ) ;
         }
+    });
+}
 
+//
+// Emission du sample reçu à tous les clients connectés
+////////////////////////////////////////////////////////////////////////////////
+function broadcastLastTrackedSample( lastSample) {
 
-        var cOtherTracks = mongoDbConnection.collection('tracks').find({applicationId:{$ne:appId}}) ;
+    debug('Broadcast sample to all tracs' ) ;
 
-        cOtherTracks.each(function(errTrack, otherTrack) {
-            if ( otherTrack ) {
-                debug('found other track ('+otherTrack.applicationId+')') ;
-
-                findPreviousLocationSample(otherTrack.applicationId).nextObject(function(err, trackSample) {
-
-                    if ( trackSample ) {
-                        debug('send status ['+trackSample.applicationId  +']' ) ;
-                        mqttClient.publish(sourceTopic +"/status",JSON.stringify(trackSample) ) ;
-                    }
-                });
-            }
-        });
+    var allTracks = mongoDbConnection.collection('tracks').find() ;
+    allTracks.each(function(errTrack, track) {
+        if (track != null) {
+            debug('send to ['+track.applicationId + ']' ) ;
+            mqttClient.publish(topicBaseName+"/"+track.applicationId +"/status",JSON.stringify(lastSample) ) ;
+        }
     });
 }
 
@@ -124,13 +154,11 @@ function extractApplicationIDFromTopic( sourceTopic) {
 function addTrackSample( newSample, applicationId ) {
 
     // Recherche du précedent sample acquis sur le même track
-    var cursor = findPreviousLocationSample(applicationId) ;
-
     newSample.distance = 0.0 ;
 
     debug('update runned distance') ;
 
-    cursor.nextObject(function(err, prevSample) {
+    findLastSample(applicationId).nextObject(function(err, prevSample) {
 
         // Calcul de la distance parcourue
         debug('found previous sample :['+JSON.stringify(prevSample)+']') ;
@@ -155,6 +183,9 @@ function addTrackSample( newSample, applicationId ) {
             if(err) throw err;
             debug('sample added in db :') ;
             debug(JSON.stringify(data)) ;
+
+            // Emission du dernier sample aux clients
+            broadcastLastTrackedSample(newSample) ;
         } );
     } );
 }
