@@ -12,6 +12,8 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.View;
 import android.widget.CheckBox;
@@ -25,7 +27,6 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.Marker;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.json.JSONException;
@@ -43,6 +44,9 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
     GoogleApiClient mGoogleApiClient;
     FollowMeMap     mFollowMeMap ;
+    RecyclerView mTrackedUsersListView;
+    RecyclerView.LayoutManager mLayoutManager ;
+    TrackedUsersListAdapter mTrackedUserListAdapter ;
 
     //
     // Map des TrackedUsers (y compris nous même)
@@ -77,6 +81,28 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+        // Création du List
+        mTrackedUsersListView = (RecyclerView) findViewById(R.id.my_recycler_view);
+
+        // use this setting to improve performance if you know that changes
+        // in content do not change the layout size of the RecyclerView
+        mTrackedUsersListView.setHasFixedSize(true);
+
+        // use a linear layout manager
+        mLayoutManager = new LinearLayoutManager(this);
+        mTrackedUsersListView.setLayoutManager(mLayoutManager);
+
+        // specify an adapter (see also next example)
+
+        mTrackedUserListAdapter = new TrackedUsersListAdapter(this.mTrackedUsersStatus);
+        mTrackedUsersListView.setAdapter(mTrackedUserListAdapter);
+
+        // On masque Distance, long lat
+        findViewById(R.id.distanceText).setVisibility(View.GONE);
+        findViewById(R.id.latCoordinateText).setVisibility(View.GONE);
+        findViewById(R.id.lonCoordinateText).setVisibility(View.GONE);
+        findViewById(R.id.statusText).setVisibility(View.GONE);
     }
 
     //
@@ -115,11 +141,16 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
     protected void onStop() {
 
+        super.onStop();
+    }
+
+    protected void onDestroy() {
+
         MessagingClient.sendMessage(mClient, "endtrack",MessagingClient.mApplicationUUID );
 
         mGoogleApiClient.disconnect();
         MessagingClient.releaseClient(mClient);
-        super.onStop();
+        super.onDestroy();
     }
 
     @Override
@@ -322,6 +353,9 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
            TextView textViewDistance = (TextView) findViewById(R.id.distanceText);
            textViewDistance.setText("" + status.getDistance());
        }
+
+       // Mise à jour de la vue
+       mTrackedUserListAdapter.notifyDataSetChanged();
    }
 
     //
@@ -366,8 +400,19 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
         textViewLon.setText(""+mLastLocation.getLongitude());
         textViewLat.setText(""+mLastLocation.getLatitude());
 
-   //     TrackedUserStatus tus =  getOrCreateMyUserStatus();
-   //     tus.updateFrom(mLastLocation.getLongitude(), mLastLocation.getLatitude(), isAutoCenterCamera());
+        // Mise à jour local
+        String locMsg = formatLocationMessage(mLastLocation);
+        JSONObject jsonMsg = null;
+        try {
+            jsonMsg = new JSONObject(locMsg);
+            // Copie locale de la
+            updateCurrentStatus(jsonMsg.toString());
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        //     TrackedUserStatus tus =  getOrCreateMyUserStatus();
+        //     tus.updateFrom(mLastLocation.getLongitude(), mLastLocation.getLatitude(), isAutoCenterCamera());
     }
 
     //

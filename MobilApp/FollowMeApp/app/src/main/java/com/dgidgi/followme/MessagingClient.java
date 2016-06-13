@@ -78,7 +78,7 @@ public class MessagingClient {
                 @Override
                 public void onFailure(IMqttToken arg0, Throwable arg1) {
                     // TODO Auto-generated method stub
-                    Log.i(LOGTAG, "Client connection failed: " + arg1.getMessage());
+                    Log.i(LOGTAG, "Client connection failed: " + arg1);
                 }
             });
         } catch (MqttException e) {

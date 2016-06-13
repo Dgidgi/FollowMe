@@ -72,6 +72,7 @@ public class TrackedUserStatus {
             mDistance =  jsonStatus.getDouble("distance") ;
         } catch (JSONException e) {
             e.printStackTrace();
+            mDistance = 0.0 ;
         }
         // Localisation
         try {
