@@ -132,6 +132,95 @@ function manageStartTracking( appId) {
     } );
 }
 
+// Appeler au login d'un utilisateur
+////////////////////////////////////////////////////////////////////////////////
+function manageUserLogin(appId, user) {
+
+    debug('login user: ['+user.userName+','+user.userKindOf+'] on ['+appId+']') ;
+
+    // Stockage en base de la donnée
+    mongoDbConnection.collection('loggedUsers').insert({user_id:user.userName+"_"+user.applicationId,user:user} , function (err, data) {
+        if(err) throw err;
+        debug('user added in db :') ;
+
+    //    debug(JSON.stringify(data)) ;
+
+        // Envoi d'un accusé reception au loggé
+        sendUserLogginAcknowledge(appId);
+
+        // Envoi de la liste des loggés à tout le monde
+        broadcastLoggedUsers() ;
+
+    } );
+}
+
+// Appeler au unlog d'un utilisateur
+////////////////////////////////////////////////////////////////////////////////
+function manageUserLogout(appId, user) {
+
+    debug('logout user: ['+user.userName+','+user.userKindOf+'] on ['+appId+']') ;
+
+    mongoDbConnection.collection('loggedUsers').remove( {user_id:user.userName+"_"+user.applicationId}, function (err, result) {
+        if(err) throw err;
+        debug('user  cleaned') ;
+    //    debug(result) ;
+
+        broadcastLoggedUsers() ;
+    } );
+}
+
+// Reception de la position d'un des utilisateurs
+///////////////////////////////////////////////////////////////////////////////
+function manageUpdateUserPosition( appId, updateUserPosition) {
+    broadcastUpdatedUserPosition( updateUserPosition ) ;
+}
+
+//
+// Emission de la dernière position reçue à tous les clients connectés
+////////////////////////////////////////////////////////////////////////////////
+function broadcastUpdatedUserPosition(updateUserPosition) {
+
+    var allLoggedUsers = mongoDbConnection.collection('loggedUsers').find({},{_id:false,user_id:false}) ;
+
+    allLoggedUsers.each(function(err, user) {
+        if (user != null) {
+            mqttClient.publish(topicBaseName+"/"+user.user.applicationId +"/updatedUserPosition",JSON.stringify(updateUserPosition) ) ;
+        }
+    });
+}
+//
+// Emission de la liste des user connectés à tous les clients connectés
+////////////////////////////////////////////////////////////////////////////////
+function broadcastLoggedUsers() {
+
+    debug('Broadcast loggedUsers' ) ;
+
+    var allLoggedUsers = mongoDbConnection.collection('loggedUsers').find({},{_id:false,user_id:false}) ;
+
+    allLoggedUsers.map().toArray( function(err,  res) {
+
+        var loggedUsers = new Array();
+        var targetsApplicationIds = new Array();
+
+        res.forEach( function(user) {
+            loggedUsers.push(user.user) ;
+            targetsApplicationIds.push( user.user.applicationId);
+        } );
+        debug('targetsApplicationIds : '+ JSON.stringify(targetsApplicationIds) ) ;
+        debug('loggedUsers : '+ JSON.stringify(loggedUsers) ) ;
+
+        targetsApplicationIds.forEach( function(appId) {
+            mqttClient.publish(topicBaseName+"/"+ appId +"/loggedUsers",JSON.stringify(loggedUsers) ) ;
+        });
+    }) ;
+}
+
+//
+///////////////////////////////////////////////////////////////////////////////
+function sendUserLogginAcknowledge(appId ) {
+    mqttClient.publish(topicBaseName+"/"+ appId +"/userLoginAcknowledge" , "ok" ) ;
+}
+
 // Extrait l'UUID de l'application à partir d'un topic
 ///////////////////////////////////////////////////////////////////////////////
 function extractApplicationIDFromTopic( sourceTopic) {
@@ -237,10 +326,27 @@ mongoClient.connect( mongoDbUrl, function(err, mongodb) {
         debug('msg received') ;
         debug('topic:') ;
         debug(topic) ;
-        debug('msg:') ;
+        debug('msg:[') ;
         debug(message.toString()) ;
 
-        if ( message.toString().indexOf("endtrack") != -1) {
+
+        if ( message.toString().indexOf("userLogin") != -1) {
+            // Loggin d'un user
+            debug("login message") ;
+
+            var loginMessage = JSON.parse(message.toString());
+
+            manageUserLogin(  extractApplicationIDFromTopic( topic), loginMessage.userLogin ) ;
+            return ;
+
+        } else if ( message.toString().indexOf("userLogout") != -1) {
+            // UnLoggin d'un user
+            var loginMessage = JSON.parse(message);
+
+            manageUserLogout(  extractApplicationIDFromTopic( topic), loginMessage.userLogout ) ;
+            return ;
+
+        } else if ( message.toString().indexOf("endtrack") != -1) {
             // Gestion en fin de tracking
             manageEndTracking(  extractApplicationIDFromTopic( topic) ) ;
             //manageEndTracking(  "TRACK-SIMU-1" ) ;
@@ -258,9 +364,10 @@ mongoClient.connect( mongoDbUrl, function(err, mongodb) {
             requestClientStatus( topic) ;
             return ;
 
-        } else {
+        }  else if ( message.toString().indexOf("updateUserPosition") != -1) {
             // Ajout d'un location sample dans un track
-            manageAddTrackSample(JSON.parse(message.toString()) ) ;
+            var updateUserPositionMsg = JSON.parse(message);
+            manageUpdateUserPosition(extractApplicationIDFromTopic( topic) , updateUserPositionMsg.updateUserPosition ) ;
 
         }
     });

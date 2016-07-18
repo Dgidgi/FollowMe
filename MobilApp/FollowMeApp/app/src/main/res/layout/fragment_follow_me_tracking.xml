@@ -1,0 +1,50 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.dgidgi.followme.FollowMeTrackingFragment">
+
+    <!-- A RecyclerView with some commonly used attributes -->
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/tracked_users_list"
+        android:scrollbars="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="100dp" />
+
+    <fragment xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_below="@+id/tracked_users_list"
+        android:layout_above="@+id/switchTrackingButton"
+        android:layout_height="match_parent"
+        android:layout_width="match_parent"
+        android:layout_marginLeft="0dp"
+        android:layout_marginTop="10dp"
+        android:id="@+id/map"
+        tools:context=".MapDemoActivity"
+        android:name="com.google.android.gms.maps.SupportMapFragment"/>
+
+    <ToggleButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Center"
+        android:id="@+id/switchTrackingButton"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentBottom="true"
+        android:onClick="onClickSwitchTrackingButton"
+        android:enabled="false"
+        android:textOff="Start"
+        android:textOn="Stop"
+        android:checked="false" />
+
+    <CheckBox
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Centrer la carte sur vous"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentBottom="true"
+        android:id="@+id/cbAutoCenter"
+        android:checked="true"
+        android:nestedScrollingEnabled="true"
+        android:enabled="true" />
+
+</RelativeLayout>

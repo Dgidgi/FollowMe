@@ -1,6 +1,7 @@
 package com.dgidgi.followme;
 
 import android.content.Context;
+import android.location.Location;
 import android.util.Log;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
@@ -12,6 +13,8 @@ import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.UUID;
 
@@ -21,7 +24,7 @@ import java.util.UUID;
 public class MessagingClient {
 
     private static final String LOGTAG ="MessagingClient" ;
-    private static final String MQTT_SERVER_URL = "tcp://test.mosquitto.org" ;
+    private static final String MQTT_SERVER_URL = "tcp://test.mosquitto.org:1883" ;
     private static final String MQTT_CLIENT_ID = "FollowMeClient" ;
     private static final String MQTT_MESSAGE_TOPIC = "dgidgi/followme/trackrecorder" ;
     public static final String mApplicationUUID = UUID.randomUUID().toString() ;
@@ -55,6 +58,16 @@ public class MessagingClient {
                             if ( topic.contains(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/"+"status") ) {
                                 listener.onMessagingStatusReceived(message.toString() ) ;
                             }
+                            else if ( topic.contains(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/"+"userLoginAcknowledge") ) {
+                                listener.onMessagingLogginUserAcknowledge();
+
+                            }
+                            else if ( topic.contains(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/"+"loggedUsers") ) {
+                                listener.onMessagingLoggedUsersReceived(message.toString() ) ;
+                            }
+                            else if ( topic.contains(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/"+"updatedUserPosition") ) {
+                                listener.onMessagingUpdatedUserPosition(message.toString() ) ;
+                            }
                         }
                         @Override
                         public void deliveryComplete(IMqttDeliveryToken token) {
@@ -62,11 +75,14 @@ public class MessagingClient {
                         }
                     });
 
-                    // On s'abonne aux message de reception de coordonnées provenant du serveur
+                    // On s'abonne aux messages qui nous sont addressés
 
                     try {
 
                         mqttClient.subscribe(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/status", 0 );
+                        mqttClient.subscribe(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/userLoginAcknowledge", 0 );
+                        mqttClient.subscribe(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/loggedUsers", 0 );
+                        mqttClient.subscribe(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/updatedUserPosition", 0 );
 
                     } catch (MqttException e) {
                         e.printStackTrace();
@@ -100,6 +116,7 @@ public class MessagingClient {
        }
 
        Log.i(LOGTAG, "Trying send message :["+strMessage+"] on topic ["+topic + "]");
+
        MqttMessage message = new MqttMessage(strMessage.getBytes());
        message.setQos(2);
        message.setRetained(false);
@@ -125,4 +142,78 @@ public class MessagingClient {
             }
         }
     }
+
+
+    static public String formatLocation(Location loc) {
+
+        if (loc != null) {
+            String msg = "{";
+            msg += "time:" + System.currentTimeMillis() + ",";
+            msg += "location:{";
+            msg += "latitude:" + String.valueOf(loc.getLatitude()) + ",";
+            msg += "longitude:" + String.valueOf(loc.getLongitude()) + ",";
+            msg += "altitude:" + String.valueOf(loc.getAltitude());
+            msg += "}";
+            msg += "}";
+
+            return msg;
+        }
+
+        return  "";
+    }
+
+    static public String formatIdentification( String userName, LoggedUser.KindOf userKindOf ) {
+        String msg = "{";
+        msg+= "userName:"+userName+",";
+        msg+= "userKindOf:"+userKindOf+",";
+        msg+= "applicationId:"+MessagingClient.mApplicationUUID;
+        msg+= "}";
+        return msg ;
+    }
+
+    static public String formatUpdatePositionMessage(  Location loc ) {
+
+        if (loc == null )
+            return "" ;
+
+        String msg = "{" ;
+        msg += "applicationId:"+ mApplicationUUID +"," ;
+        msg += "loc:"+ formatLocation(loc) ;
+        msg += "}";
+
+        return msg;
+    }
+
+    static public void sendUpdatePositionMessage(MqttAndroidClient mqttClient, Location loc ) {
+
+        JSONObject jsonMsg = null;
+        try {
+            jsonMsg = new JSONObject( "{updateUserPosition:"+formatUpdatePositionMessage(loc)+"}");
+            MessagingClient.sendMessage(mqttClient,jsonMsg.toString(), mApplicationUUID );
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static public void sendUserLoginMessage( MqttAndroidClient mqttClient, String userName, LoggedUser.KindOf userKindOf ) {
+
+        JSONObject jsonMsg = null;
+        try {
+            jsonMsg = new JSONObject( "{userLogin:"+formatIdentification(userName,userKindOf)+"}");
+            MessagingClient.sendMessage(mqttClient,jsonMsg.toString(), mApplicationUUID );
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static public void sendUserLogoutMessage( MqttAndroidClient mqttClient, String userName, LoggedUser.KindOf userKindOf ) {
+        JSONObject jsonMsg = null;
+        try {
+            jsonMsg = new JSONObject( "{userLogout:"+formatIdentification(userName,userKindOf)+"}");
+            MessagingClient.sendMessage(mqttClient,jsonMsg.toString(), mApplicationUUID );
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
 }

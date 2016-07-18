@@ -9,5 +9,8 @@ public interface IMessagingClientListerner {
     void onMessagingClientConnected(MqttAndroidClient client) ;
     void onMessagingStatusReceived(String coordinate) ;
     void onMessagingClientConnectionLost(MqttAndroidClient client) ;
+    void onMessagingLoggedUsersReceived( final String loggedUsers );
+    void onMessagingLogginUserAcknowledge();
+    void onMessagingUpdatedUserPosition(final String updatedUserPosition);
 
     }
