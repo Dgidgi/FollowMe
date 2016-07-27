@@ -9,7 +9,7 @@
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Accompagnateur"
+        android:text="Spectacteur"
         android:id="@+id/btLogginFollower"
         android:layout_gravity="right|bottom" />
 

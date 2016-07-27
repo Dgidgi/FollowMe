@@ -36,12 +36,35 @@
         android:textOn="Stop"
         android:checked="false" />
 
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Envoyer ..."
+        android:id="@+id/sendMessageToRunner"
+        android:layout_alignRight="@+id/map"
+        android:layout_centerHorizontal="false"
+        android:layout_alignParentBottom="true"
+        android:onClick="onClickSendMessage"
+        android:enabled="true"/>
+
+    <EditText
+        android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:text="Message"
+        android:id="@+id/txtMessage"
+        android:layout_alignLeft="@+id/map"
+        android:layout_centerHorizontal="false"
+        android:layout_alignParentBottom="true"
+        android:layout_toLeftOf="@+id/sendMessageToRunner"
+       />
+
     <CheckBox
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_alignBottom="@+id/map"
         android:text="Centrer la carte sur vous"
         android:layout_alignParentRight="true"
-        android:layout_alignParentBottom="true"
         android:id="@+id/cbAutoCenter"
         android:checked="true"
         android:nestedScrollingEnabled="true"

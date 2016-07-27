@@ -4,6 +4,8 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.Voice;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -21,7 +23,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -46,6 +51,13 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
     private  static Map<String, LoggedUser> mMapLoggedUsers = new HashMap<String, LoggedUser>() ;
 
+
+    private static TextToSpeech mTextToSpeechService = null ;
+
+
+    public static void speak( String text) {
+        mTextToSpeechService.speak(text, TextToSpeech.QUEUE_FLUSH,  null);
+    }
     //
     // Retourne la liste des utilisateurs connectés
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -85,6 +97,15 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                     .addApi(LocationServices.API)
                     .build();
         }
+
+        mTextToSpeechService=new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                mTextToSpeechService.setLanguage(Locale.FRANCE) ;
+
+            }
+        }
+        );
     }
 
     //
@@ -125,10 +146,35 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                 try {
                     JSONArray loggedUsers = new JSONArray(sLoggedUsers) ;
 
-                    mMapLoggedUsers.clear();
+                    Map<String,LoggedUser > loggedUsersMap = new HashMap<String, LoggedUser>() ;
                     for (int i = 0 ; i < loggedUsers.length() ; i++) {
                         LoggedUser usr = new LoggedUser(loggedUsers.getJSONObject(i)) ;
-                        mMapLoggedUsers.put(usr.getApplicationId(),usr);
+                        loggedUsersMap.put(usr.getApplicationId(),usr);
+                    }
+
+                    // Ajout des nouveaux + annonce si nécessaire
+                    for(LoggedUser lu:loggedUsersMap.values()) {
+                        if ( !mMapLoggedUsers.containsKey(lu.getApplicationId())) {
+                            mMapLoggedUsers.put(lu.getApplicationId(), lu);
+
+                            if ( FollowMeMainActivity.getCurrentUser().getUserKindOf() == LoggedUser.KindOf.RUNNER) {
+                                if ( mFollowMeTrackingFragment.showUser(lu)) {
+                                    FollowMeMainActivity.speak("Le spectateur "+lu.getUserName()+" vient de se connecter");
+                                }
+                            }
+                        }
+                    }
+
+                    List<String> toRemove = new ArrayList<String>() ;
+                    // Suppression de ceux qui ne sont plus loggés
+                    for(LoggedUser lu:mMapLoggedUsers.values()) {
+                        if ( !loggedUsersMap.containsKey(lu.getApplicationId() )) {
+                            toRemove.add(lu.getApplicationId());
+                        }
+                    }
+
+                    for( String sAppId:toRemove ) {
+                        mMapLoggedUsers.remove(sAppId) ;
                     }
 
                     mFollowMeTrackingFragment.loggedUsersListChanged();
