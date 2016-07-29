@@ -68,6 +68,9 @@ public class MessagingClient {
                             else if ( topic.contains(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/"+"updatedUserPosition") ) {
                                 listener.onMessagingUpdatedUserPosition(message.toString() ) ;
                             }
+                            else if ( topic.contains(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/"+"userMessage") ) {
+                                listener.onMessagingUserMessageReceived(message.toString() ) ;
+                            }
                         }
                         @Override
                         public void deliveryComplete(IMqttDeliveryToken token) {
@@ -83,7 +86,7 @@ public class MessagingClient {
                         mqttClient.subscribe(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/userLoginAcknowledge", 0 );
                         mqttClient.subscribe(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/loggedUsers", 0 );
                         mqttClient.subscribe(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/updatedUserPosition", 0 );
-
+                        mqttClient.subscribe(MQTT_MESSAGE_TOPIC + "/"+mApplicationUUID+"/userMessage", 0 );
                     } catch (MqttException e) {
                         e.printStackTrace();
                     }
@@ -210,6 +213,26 @@ public class MessagingClient {
         JSONObject jsonMsg = null;
         try {
             jsonMsg = new JSONObject( "{userLogout:"+formatIdentification(userName,userKindOf)+"}");
+            MessagingClient.sendMessage(mqttClient,jsonMsg.toString(), mApplicationUUID );
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static private String formatSendMessage(String sTargetUserAppId, String sMessage) {
+        String msg = "{" ;
+        msg += "fromUserApplicationId:"+ mApplicationUUID +"," ;
+        msg += "targetUserApplicationId:"+ sTargetUserAppId +"," ;
+        msg += "message:\""+ sMessage+"\"" ;
+        msg += "}";
+
+        return msg;
+    }
+
+    static public void  sendMessageToUser(MqttAndroidClient mqttClient, String sTargetUserAppId, String sMessage) {
+        JSONObject jsonMsg = null;
+        try {
+            jsonMsg = new JSONObject( "{sendMessage:"+formatSendMessage(sTargetUserAppId,sMessage)+"}");
             MessagingClient.sendMessage(mqttClient,jsonMsg.toString(), mApplicationUUID );
         } catch (JSONException e) {
             e.printStackTrace();

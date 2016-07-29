@@ -6,12 +6,15 @@ import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.TextView;
 import android.widget.ToggleButton;
 
 import com.google.android.gms.maps.GoogleMap;
@@ -55,6 +58,9 @@ public class FollowMeTrackingFragment extends Fragment implements OnMapReadyCall
     LoggedUsersListAdapter  mLoggedUserListAdapter ;
     CheckBox mAUtoCenter ;
     Button mSwitchTrackingButton ;
+
+    TextView    mTextMessage ;
+    Button      mButtonSendMessage ;
 
     private OnFragmentInteractionListener mListener;
 
@@ -160,6 +166,39 @@ public class FollowMeTrackingFragment extends Fragment implements OnMapReadyCall
 
         mSwitchTrackingButton.setVisibility(View.GONE);
 
+
+        mTextMessage  = (TextView) view.findViewById(R.id.txtMessage) ;
+
+        mTextMessage.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                mButtonSendMessage.setEnabled(s.length() > 0);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+
+            }
+        });
+
+        mButtonSendMessage = (Button) view.findViewById(R.id.btSendMessageToRunner)  ;
+
+        mButtonSendMessage.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                if (mFollowingUser != null)
+                    mListener.sendMessageToRunner(mFollowingUser, mTextMessage.getText().toString());
+
+            }
+        });
+
+
         // Inflate the layout for this fragment
         return view ;
     }
@@ -254,6 +293,7 @@ public class FollowMeTrackingFragment extends Fragment implements OnMapReadyCall
         // TODO: Update argument type and name
         void onFragmentStartTracking();
         void onFragmentStopTracking();
+        void sendMessageToRunner( LoggedUser followingUser, String sMessage);
     }
 
     //

@@ -157,10 +157,12 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
                         if ( !mMapLoggedUsers.containsKey(lu.getApplicationId())) {
                             mMapLoggedUsers.put(lu.getApplicationId(), lu);
 
-                            if ( FollowMeMainActivity.getCurrentUser().getUserKindOf() == LoggedUser.KindOf.RUNNER) {
-                                if ( mFollowMeTrackingFragment.showUser(lu)) {
-                                    FollowMeMainActivity.speak("Le spectateur "+lu.getUserName()+" vient de se connecter");
-                                }
+                            if (    (FollowMeMainActivity.getCurrentUser() != null)&&
+                                    (FollowMeMainActivity.getCurrentUser().getUserKindOf() == LoggedUser.KindOf.RUNNER) &&
+                                    ( mFollowMeTrackingFragment.showUser(lu))) {
+
+                                FollowMeMainActivity.speak("Le spectateur "+lu.getUserName()+" vient de se connecter");
+
                             }
                         }
                     }
@@ -216,10 +218,36 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
                 }
             }
+
+            @Override
+            public void onMessagingUserMessageReceived(String userMessage) {
+
+                Log.i(LOGTAG, " onMessagingUserMessageReceived !");
+                try {
+                    JSONObject jsoUserMessage = new JSONObject(userMessage ) ;
+
+                    LoggedUser fromUser = mMapLoggedUsers.get( jsoUserMessage.getString("fromUserApplicationId" ) );
+
+                    String sFromName = "inconnu";
+                    if ( fromUser != null ) {
+                        sFromName = fromUser.getUserName();
+                    }
+
+
+                    FollowMeMainActivity.speak( "Nouveau message de "+sFromName);
+                    FollowMeMainActivity.speak( jsoUserMessage.getString("message" ) );
+
+
+                } catch (JSONException e) {
+
+                }
+            }
         });
 
         super.onStart();
     }
+
+
 
     public void updateTrackingStatus( final String status ){
         runOnUiThread(new Runnable() {
@@ -372,6 +400,13 @@ public class FollowMeMainActivity extends AppCompatActivity implements GoogleApi
 
 
         MessagingClient.sendUserLoginMessage(mMessagingClient, userName,LoggedUser.KindOf.FOLLOWER);
+    }
+
+
+    @Override
+    public void sendMessageToRunner( LoggedUser followingUser, String sMessage)
+    {
+        MessagingClient.sendMessageToUser(mMessagingClient, followingUser.getApplicationId() ,sMessage);
     }
 
 

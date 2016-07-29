@@ -12,5 +12,6 @@ public interface IMessagingClientListerner {
     void onMessagingLoggedUsersReceived( final String loggedUsers );
     void onMessagingLogginUserAcknowledge();
     void onMessagingUpdatedUserPosition(final String updatedUserPosition);
+    void onMessagingUserMessageReceived(final String userMessage);
 
     }

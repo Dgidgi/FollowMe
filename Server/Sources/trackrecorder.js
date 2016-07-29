@@ -221,6 +221,15 @@ function sendUserLogginAcknowledge(appId ) {
     mqttClient.publish(topicBaseName+"/"+ appId +"/userLoginAcknowledge" , "ok" ) ;
 }
 
+
+//
+//
+//////////////////////////////////////////////////////////////////////////////
+function sendUserMessage(message) {
+    debug('sendUserMessage : to '+message.targetUserApplicationId+"message" + JSON.stringify(message) ) ;
+    mqttClient.publish(topicBaseName+"/"+ message.targetUserApplicationId +"/userMessage" , JSON.stringify(message) ) ;
+}
+
 // Extrait l'UUID de l'application à partir d'un topic
 ///////////////////////////////////////////////////////////////////////////////
 function extractApplicationIDFromTopic( sourceTopic) {
@@ -368,6 +377,11 @@ mongoClient.connect( mongoDbUrl, function(err, mongodb) {
             // Ajout d'un location sample dans un track
             var updateUserPositionMsg = JSON.parse(message);
             manageUpdateUserPosition(extractApplicationIDFromTopic( topic) , updateUserPositionMsg.updateUserPosition ) ;
+
+        } else if ( message.toString().indexOf("sendMessage") != -1) {
+            // Ajout d'un location sample dans un track
+            var sendMessageMsg = JSON.parse(message);
+            sendUserMessage(  sendMessageMsg.sendMessage ) ;
 
         }
     });

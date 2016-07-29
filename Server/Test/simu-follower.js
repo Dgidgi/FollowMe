@@ -2,6 +2,13 @@
 var mqtt    = require('mqtt');
 var client  = mqtt.connect('mqtt://test.mosquitto.org');
 
+
+
+
+
+
+
+
 client.on('connect', function () {
 
   client.subscribe('dgidgi/followme/trackrecorder/appid_3/loggedUsers');
@@ -9,6 +16,8 @@ client.on('connect', function () {
 
 
   var msg = JSON.stringify( {userLogin:{userName: "OscarLeBaroudeur",userKindOf:"FOLLOWER", applicationId:"appid_14"}} ) ;
+
+
   client.publish('dgidgi/followme/trackrecorder/appid_14', msg );
 
 
